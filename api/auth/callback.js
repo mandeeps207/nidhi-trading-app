@@ -9,39 +9,35 @@ export default async function handler(req, res) {
   if (!auth_token) return res.status(400).send('Missing auth_token');
 
   try {
-    // Exchange auth_token for jwt_token (session token)
     const response = await axios.post(
-      'https://apiconnect.angelbroking.com/rest/auth/angelbroking/user/v1/loginByPassword',
+      'https://apiconnect.angelbroking.com/rest/auth/angelbroking/jwt/v1/generateSession',
       {
-        clientcode: '', // We'll extract this from response or use saved client code
-        password: '',   // For now, leave empty unless you switch to password login
+        clientcode: "", // not needed when using auth_token
+        refreshToken: "",
+        jwtToken: "",
+        token: auth_token,
+        appID: ANGEL_API_KEY,
+        apiSecret: ANGEL_API_SECRET
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-ClientLocalIP': '127.0.0.1',
-          'X-ClientPublicIP': '127.0.0.1',
-          'X-MACAddress': '00:00:00:00:00:00',
-          'X-PrivateKey': ANGEL_API_SECRET,
-          'X-UserType': 'USER',
-          'X-SourceID': 'WEB',
-          'X-ClientCode': '', // will update once we get clientcode
-          'X-AccessToken': auth_token,
+          Accept: 'application/json'
         }
       }
     );
 
-    const { jwtToken, clientcode } = response.data.data;
+    const { jwtToken, data } = response.data;
+    const clientcode = data?.clientcode || 'UNKNOWN';
 
     await sql`
       INSERT INTO tokens (auth_token, jwt_token, feed_token, refresh_token, clientcode, created_at)
       VALUES (${auth_token}, ${jwtToken}, ${feed_token}, ${refresh_token}, ${clientcode}, NOW())
     `;
 
-    return res.status(200).send('✅ Login + Token Exchange Success! Tokens stored.');
+    return res.status(200).send('✅ Login success! Token saved.');
   } catch (error) {
-    console.error('Token exchange error:', error?.response?.data || error);
-    return res.status(500).json({ error: 'Failed to fetch session token' });
+    console.error('Session error:', error?.response?.data || error);
+    return res.status(500).json({ error: 'Token exchange failed.' });
   }
 }
